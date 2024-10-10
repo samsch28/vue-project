@@ -1,6 +1,7 @@
 <script lang="ts">
 import { ref } from 'vue'
 import PouchDB from 'pouchdb'
+
 declare interface Post {
   _id: string
   doc: {
