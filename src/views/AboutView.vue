@@ -63,7 +63,7 @@ export default {
       }
     },
     initDatabase() {
-      const db = new PouchDB('http://admin:aBcD1234!!@localhost:5173/demo')
+      const db = new PouchDB('http://admin:aBcD1234!!@127.0.0.1:5984/demo')
       if (db) {
         console.log("Connected to collection 'demo'")
       } else {
