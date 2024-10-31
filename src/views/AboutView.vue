@@ -4,6 +4,7 @@ import PouchDB from 'pouchdb'
 
 declare interface Post {
   _id: string
+  _rev?: string
   doc: {
     post_name: string
     post_content: string
@@ -29,19 +30,6 @@ export default {
   },
 
   methods: {
-    putDocument(document: Post) {
-      const db = ref(this.storage).value
-      if (db) {
-        db.put(document)
-          .then(() => {
-            console.log('Add ok')
-          })
-          .catch((error: any) => {
-            console.log('Add ko', error)
-          })
-      }
-    },
-
     fetchData() {
       const storage = ref(this.storage)
       const self = this
@@ -70,6 +58,59 @@ export default {
         console.warn('Something went wrong')
       }
       this.storage = db
+    },
+
+    generateFakePost(): Post {
+      return {
+        _id: new Date().toISOString(),
+        doc: {
+          post_name: `Post_${Math.random().toString(36).substring(7)}`,
+          post_content: 'Ceci est un contenu fictif.',
+          attributes: {
+            creation_date: new Date().toISOString()
+          }
+        }
+      }
+    },
+
+    addFakePost() {
+      const fakePost = this.generateFakePost()
+      this.putDocument(fakePost)
+    },
+
+    putDocument(document: Post) {
+      if (this.storage) {
+        this.storage
+          .put(document)
+          .then(() => console.log('Document ajouté/mis à jour avec succès'))
+          .catch((error) => console.error('Erreur d’ajout/mise à jour du document:', error))
+      }
+    },
+    editPost(post: Post) {
+      const newName = prompt('Modifier le nom du post:', post.doc.post_name)
+      if (newName) {
+        post.doc.post_name = newName
+        if (this.storage) {
+          this.storage
+            .put(post)
+            .then(() => console.log('Mise à jour réussie'))
+            .catch((error) => console.error('Erreur de mise à jour:', error))
+        }
+      }
+    },
+    deletePost(post: Post) {
+      if (this.storage && post._rev) {
+        // Vérifier que _rev est présent
+        this.storage
+          .remove(post._id, post._rev)
+          .then(() => {
+            console.log('Suppression réussie')
+            this.fetchData() // Rafraîchir les données après suppression
+          })
+          .catch((error) => console.error('Erreur de suppression:', error))
+      } else {
+        console.warn('Impossible de supprimer : _rev manquant.')
+      }
     }
   }
 }
@@ -77,6 +118,7 @@ export default {
 
 <template>
   <h1>Nombre de post: {{ postsData.length }}</h1>
+  <button @click="addFakePost">Ajouter un Post</button>
   <ul>
     <li v-for="post in postsData" :key="post._id">
       <div class="ucfirst">
@@ -85,6 +127,8 @@ export default {
           - {{ post.doc.attributes?.creation_date }}
         </em>
       </div>
+      <button @click="editPost(post)">Modifier</button>
+      <button @click="deletePost(post)">Supprimer</button>
     </li>
   </ul>
 </template>
