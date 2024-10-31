@@ -32,22 +32,22 @@ export default {
   methods: {
     fetchData() {
       const storage = ref(this.storage)
-      const self = this
       if (storage.value) {
         storage.value
           .allDocs({
             include_docs: true,
             attachments: true
           })
-          .then(
-            function (result: any) {
-              console.log('fetchData success', result)
-              self.postsData = result.rows
-            }.bind(this)
-          )
-          .catch(function (error: any) {
-            console.log('fetchData error', error)
+          .then((result) => {
+            console.log('fetchData success', result)
+            // Crée un tableau avec uniquement les données nécessaires, en gérant les valeurs optionnelles
+            this.postsData = result.rows.map((row: any) => ({
+              _id: row.id,
+              _rev: row.doc?._rev, // Utilisation de l'opérateur optionnel pour éviter les erreurs
+              doc: row.doc || {} // Assurez-vous d'avoir un objet vide si `doc` est indéfini
+            })) as Post[] // Casting en `Post[]` pour correspondre au type
           })
+          .catch((error) => console.error('fetchData error:', error))
       }
     },
     initDatabase() {
@@ -132,3 +132,25 @@ export default {
     </li>
   </ul>
 </template>
+
+<style scoped>
+li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ucfirst {
+  flex-grow: 1;
+}
+
+.buttons {
+  display: flex;
+  gap: 5px;
+}
+
+button {
+  padding: 5px 10px;
+  font-size: 0.9rem;
+}
+</style>
