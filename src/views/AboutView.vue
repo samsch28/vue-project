@@ -20,7 +20,9 @@ export default {
       total: 0,
       postsData: [] as Post[],
       document: null as Post | null,
-      storage: null as PouchDB.Database | null
+      storage: null as PouchDB.Database | null,
+      editMode: false, // Nouveau: pour savoir si on est en mode édition
+      editedPost: null as Post | null // Nouveau: post en cours d'édition
     }
   },
 
@@ -40,16 +42,16 @@ export default {
           })
           .then((result) => {
             console.log('fetchData success', result)
-            // Crée un tableau avec uniquement les données nécessaires, en gérant les valeurs optionnelles
             this.postsData = result.rows.map((row: any) => ({
               _id: row.id,
-              _rev: row.doc?._rev, // Utilisation de l'opérateur optionnel pour éviter les erreurs
-              doc: row.doc || {} // Assurez-vous d'avoir un objet vide si `doc` est indéfini
-            })) as Post[] // Casting en `Post[]` pour correspondre au type
+              _rev: row.doc?._rev,
+              doc: row.doc || {}
+            })) as Post[]
           })
           .catch((error) => console.error('fetchData error:', error))
       }
     },
+
     initDatabase() {
       const db = new PouchDB('http://admin:aBcD1234!!@127.0.0.1:5984/demo')
       if (db) {
@@ -86,26 +88,38 @@ export default {
           .catch((error) => console.error('Erreur d’ajout/mise à jour du document:', error))
       }
     },
+
     editPost(post: Post) {
-      const newName = prompt('Modifier le nom du post:', post.doc.post_name)
-      if (newName) {
-        post.doc.post_name = newName
-        if (this.storage) {
-          this.storage
-            .put(post)
-            .then(() => console.log('Mise à jour réussie'))
-            .catch((error) => console.error('Erreur de mise à jour:', error))
-        }
+      this.editMode = true
+      this.editedPost = { ...post } // Cloner le post pour l'édition
+    },
+
+    savePost() {
+      if (this.editedPost && this.storage) {
+        this.storage
+          .put(this.editedPost)
+          .then(() => {
+            console.log('Mise à jour réussie')
+            this.editMode = false
+            this.editedPost = null
+            this.fetchData() // Rafraîchir les données pour refléter la modification
+          })
+          .catch((error) => console.error('Erreur de mise à jour:', error))
       }
     },
+
+    cancelEdit() {
+      this.editMode = false
+      this.editedPost = null
+    },
+
     deletePost(post: Post) {
       if (this.storage && post._rev) {
-        // Vérifier que _rev est présent
         this.storage
           .remove(post._id, post._rev)
           .then(() => {
             console.log('Suppression réussie')
-            this.fetchData() // Rafraîchir les données après suppression
+            this.fetchData()
           })
           .catch((error) => console.error('Erreur de suppression:', error))
       } else {
@@ -117,13 +131,26 @@ export default {
 </script>
 
 <template>
-  <h1>Nombre de post: {{ postsData.length }}</h1>
+  <h1>Nombre de posts: {{ postsData.length }}</h1>
   <button @click="addFakePost">Ajouter un Post</button>
+
+  <!-- Formulaire d'édition -->
+  <div v-if="editMode && editedPost" class="edit-form">
+    <h2>Modifier le Post</h2>
+    <label>Nom du post :</label>
+    <input v-model="editedPost.doc.post_name" />
+    <label>Contenu du post :</label>
+    <textarea v-model="editedPost.doc.post_content"></textarea>
+    <button @click="savePost">Sauvegarder</button>
+    <button @click="cancelEdit">Annuler</button>
+  </div>
+
+  <!-- Liste des posts -->
   <ul>
     <li v-for="post in postsData" :key="post._id">
       <div class="ucfirst">
-        {{ post.doc.post_name
-        }}<em style="font-size: x-small" v-if="post.doc.attributes?.creation_date">
+        {{ post.doc.post_name }}
+        <em style="font-size: x-small" v-if="post.doc.attributes?.creation_date">
           - {{ post.doc.attributes?.creation_date }}
         </em>
       </div>
@@ -144,9 +171,11 @@ li {
   flex-grow: 1;
 }
 
-.buttons {
-  display: flex;
-  gap: 5px;
+.edit-form {
+  margin-bottom: 20px;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
 }
 
 button {
