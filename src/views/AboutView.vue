@@ -17,25 +17,59 @@ declare interface Post {
 export default {
   data() {
     return {
+      storage: null as PouchDB.Database | null,
       total: 0,
       postsData: [] as Post[],
       document: null as Post | null,
-      storage: null as PouchDB.Database | null,
-      editMode: false, // Nouveau: pour savoir si on est en mode édition
-      editedPost: null as Post | null // Nouveau: post en cours d'édition
+      localDB: null as PouchDB.Database | null, // Base de données locale
+      remoteDB: null as PouchDB.Database | null, // Base de données distante
+      editMode: false,
+      editedPost: null as Post | null
     }
   },
 
   mounted() {
-    this.initDatabase()
-    this.fetchData()
+    this.initLocalDatabase() // Crée et initialise la base de données locale
+    this.initRemoteDatabase() // Crée et initialise la base de données distante
+    this.syncDatabases() // Synchronise les deux bases de données
+    this.fetchData() // Récupère les données initiales pour l'affichage
   },
 
   methods: {
+    initLocalDatabase() {
+      const localDB = new PouchDB('local_demo')
+      this.localDB = localDB
+      this.storage = localDB // Utilisez `localDB` comme base principale pour CRUD
+      console.log("Base de données locale 'local_demo' initialisée.")
+    },
+
+    initRemoteDatabase() {
+      const remoteDB = new PouchDB('http://admin:aBcD1234!!@127.0.0.1:5984/demo')
+      this.remoteDB = remoteDB
+      console.log("Connexion établie avec la base de données distante 'demo'.")
+    },
+
+    syncDatabases() {
+      if (this.localDB && this.remoteDB) {
+        this.localDB
+          .sync(this.remoteDB, {
+            live: true, // Synchronisation en temps réel
+            retry: true // Réessayer en cas d'échec de connexion
+          })
+          .on('change', (info) => {
+            console.log('Changements détectés pendant la synchronisation', info)
+            this.fetchData() // Rafraîchir les données locales à chaque changement
+          })
+          .on('error', (error) => {
+            console.error('Erreur pendant la synchronisation:', error)
+          })
+        console.log('Synchronisation bidirectionnelle entre local_demo et demo activée.')
+      }
+    },
+
     fetchData() {
-      const storage = ref(this.storage)
-      if (storage.value) {
-        storage.value
+      if (this.localDB) {
+        this.localDB
           .allDocs({
             include_docs: true,
             attachments: true
@@ -50,16 +84,6 @@ export default {
           })
           .catch((error) => console.error('fetchData error:', error))
       }
-    },
-
-    initDatabase() {
-      const db = new PouchDB('http://admin:aBcD1234!!@127.0.0.1:5984/demo')
-      if (db) {
-        console.log("Connected to collection 'demo'")
-      } else {
-        console.warn('Something went wrong')
-      }
-      this.storage = db
     },
 
     generateFakePost(): Post {
@@ -81,10 +105,10 @@ export default {
     },
 
     putDocument(document: Post) {
-      if (this.storage) {
-        this.storage
+      if (this.localDB) {
+        this.localDB
           .put(document)
-          .then(() => console.log('Document ajouté/mis à jour avec succès'))
+          .then(() => console.log('Document ajouté/mis à jour avec succès dans la base locale'))
           .catch((error) => console.error('Erreur d’ajout/mise à jour du document:', error))
       }
     },
@@ -95,8 +119,8 @@ export default {
     },
 
     savePost() {
-      if (this.editedPost && this.storage) {
-        this.storage
+      if (this.editedPost && this.localDB) {
+        this.localDB
           .put(this.editedPost)
           .then(() => {
             console.log('Mise à jour réussie')
@@ -114,8 +138,8 @@ export default {
     },
 
     deletePost(post: Post) {
-      if (this.storage && post._rev) {
-        this.storage
+      if (this.localDB && post._rev) {
+        this.localDB
           .remove(post._id, post._rev)
           .then(() => {
             console.log('Suppression réussie')
