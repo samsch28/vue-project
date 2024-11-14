@@ -18,6 +18,7 @@ export default {
   data() {
     return {
       storage: null as PouchDB.Database | null,
+
       total: 0,
       postsData: [] as Post[],
       document: null as Post | null,
